@@ -150,7 +150,7 @@ function Hub() {
       }
     } catch (error) {
       console.error('Error loading profile:', error);
-      alert('An error occurred while loading the profile.');
+      alert(`An error occurred while loading the profile: ${error.message}`);
     }
   };
 

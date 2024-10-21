@@ -27,84 +27,38 @@ async function getConnection() {
   return await mysql.createConnection(dbConfig);
 }
 
-// New route: Save Profile
-app.post('/api/save-profile', async (req, res) => {
-    const { name, dataType, selectedStates, selectedParties, role, uccType } = req.body;
-  
-    if (!name) {
-      return res.status(400).json({ error: 'Profile name is required' });
-    }
-  
-    try {
-      const connection = await getConnection();
-      const query = 'INSERT INTO profiles (name, config) VALUES (?, ?) ON DUPLICATE KEY UPDATE config = ?';
-      const config = JSON.stringify({ dataType, selectedStates, selectedParties, role, uccType });
-      await connection.execute(query, [name, config, config]);
-      await connection.end();
-      res.status(200).json({ message: 'Profile saved successfully' });
-    } catch (error) {
-      console.error('Error saving profile:', error);
-      res.status(500).json({ error: 'An error occurred while saving the profile' });
-    }
-  });
-  
-  // New route: Load Profile
-  app.get('/api/load-profile', async (req, res) => {
-    const { name } = req.query;
-  
-    if (!name) {
-      return res.status(400).json({ error: 'Profile name is required' });
-    }
-  
-    try {
-      const connection = await getConnection();
-      const [rows] = await connection.execute('SELECT config FROM profiles WHERE name = ?', [name]);
-      await connection.end();
-  
-      if (rows.length > 0) {
-        const config = JSON.parse(rows[0].config);
-        res.status(200).json(config);
-      } else {
-        res.status(404).json({ error: 'Profile not found' });
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
-      res.status(500).json({ error: 'An error occurred while loading the profile' });
-    }
-  });
-  
 // Secured Parties Route
 app.get('/api/secured-parties', async (req, res) => {
-    const { states } = req.query;
-  
-    if (!states) {
-      return res.status(400).json({ error: 'States parameter is required' });
-    }
-  
-    const stateList = states.split(',');
-  
-    try {
-      const connection = await getConnection();
-  
-      let query = 'SELECT DISTINCT `Secured Party Name` FROM (';
-      const queryParts = stateList.map(state => `SELECT \`Secured Party Name\` FROM \`${state}\``);
-      query += queryParts.join(' UNION ALL ') + ') AS combined_tables ORDER BY `Secured Party Name`';
-  
-      const [rows] = await connection.execute(query);
-      await connection.end();
-  
-      const parties = rows.map(row => ({
-        value: row['Secured Party Name'],
-        label: row['Secured Party Name']
-      }));
-  
-      res.json([{ value: 'all', label: 'All Secured Parties' }, ...parties]);
-    } catch (error) {
-      console.error('Error fetching secured parties:', error);
-      res.status(500).json({ error: 'An error occurred while fetching secured parties' });
-    }
-  });
-  
+  const { states } = req.query;
+
+  if (!states) {
+    return res.status(400).json({ error: 'States parameter is required' });
+  }
+
+  const stateList = states.split(',');
+
+  try {
+    const connection = await getConnection();
+
+    let query = 'SELECT DISTINCT `Secured Party Name` FROM (';
+    const queryParts = stateList.map(state => `SELECT \`Secured Party Name\` FROM \`${state}\``);
+    query += queryParts.join(' UNION ALL ') + ') AS combined_tables ORDER BY `Secured Party Name`';
+
+    const [rows] = await connection.execute(query);
+    await connection.end();
+
+    const parties = rows.map(row => ({
+      value: row['Secured Party Name'],
+      label: row['Secured Party Name']
+    }));
+
+    res.json([{ value: 'all', label: 'All Secured Parties' }, ...parties]);
+  } catch (error) {
+    console.error('Error fetching secured parties:', error);
+    res.status(500).json({ error: 'An error occurred while fetching secured parties' });
+  }
+});
+
 // CSV Generation Route
 app.post('/api/generate-csv', async (req, res) => {
   const { states, dataType, role, uccType, securedParties } = req.body;
@@ -252,6 +206,68 @@ app.get('/api/load-configuration', async (req, res) => {
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'An error occurred while loading the configuration' });
+  }
+});
+
+// Save Profile Route
+app.post('/api/save-profile', async (req, res) => {
+  const { name, dataType, selectedStates, selectedParties, role, uccType } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Profile name is required' });
+  }
+
+  try {
+    const connection = await getConnection();
+    const query = 'INSERT INTO profiles (name, config) VALUES (?, ?) ON DUPLICATE KEY UPDATE config = ?';
+    const config = JSON.stringify({ dataType, selectedStates, selectedParties, role, uccType });
+    await connection.execute(query, [name, config, config]);
+    await connection.end();
+    res.status(200).json({ message: 'Profile saved successfully' });
+  } catch (error) {
+    console.error('Error saving profile:', error);
+    res.status(500).json({ error: 'An error occurred while saving the profile' });
+  }
+});
+
+// Load Profile Route
+app.get('/api/load-profile', async (req, res) => {
+  const { name } = req.query;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Profile name is required' });
+  }
+
+  try {
+    const connection = await getConnection();
+    const [rows] = await connection.execute('SELECT config FROM profiles WHERE name = ?', [name]);
+    await connection.end();
+
+    if (rows.length > 0) {
+      let config = rows[0].config;
+
+      // Check if config is a string, if so, try to parse it
+      if (typeof config === 'string') {
+        try {
+          config = JSON.parse(config);
+        } catch (parseError) {
+          console.error('Error parsing stored configuration:', parseError);
+          return res.status(500).json({ error: 'Stored configuration is not valid JSON' });
+        }
+      }
+
+      // At this point, config should be an object
+      if (typeof config !== 'object' || config === null) {
+        return res.status(500).json({ error: 'Stored configuration is not a valid object' });
+      }
+
+      res.status(200).json(config);
+    } else {
+      res.status(404).json({ error: 'Profile not found' });
+    }
+  } catch (error) {
+    console.error('Error loading profile:', error);
+    res.status(500).json({ error: 'An error occurred while loading the profile' });
   }
 });
 
