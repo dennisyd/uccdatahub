@@ -13,7 +13,7 @@ function Hub() {
   const [selectedParties, setSelectedParties] = useState([]);
   const [securedParties, setSecuredParties] = useState([]);
   const [isProfileOpen, setIsProfileOpen] = useState(true);
-  const [role, setRole] = useState('owner');
+  const [role, setRole] = useState('all');
   const [uccType, setUccType] = useState('contactInfo');
   const [profileName, setProfileName] = useState('');
   const [currentQuery, setCurrentQuery] = useState('');
@@ -65,6 +65,13 @@ function Hub() {
       }
     } catch (error) {
       console.error('Error fetching secured parties:', error);
+    }
+  };
+
+  const handleDataTypeChange = (newDataType) => {
+    setDataType(newDataType);
+    if (newDataType === 'basic') {
+      setRole('all');
     }
   };
 
@@ -182,7 +189,7 @@ function Hub() {
         setDataType('basic');
         setSelectedStates([]);
         setSelectedParties([]);
-        setRole('owner');
+        setRole('all');
         setUccType('contactInfo');
         setProfileName('');
         setCurrentQuery('');
@@ -215,13 +222,13 @@ function Hub() {
                 id="basic"
                 label="Standard"
                 checked={dataType === 'basic'}
-                onChange={() => setDataType('basic')}
+                onChange={() => handleDataTypeChange('basic')}
               />
               <Radio
                 id="full"
                 label="Comprehensive"
                 checked={dataType === 'full'}
-                onChange={() => setDataType('full')}
+                onChange={() => handleDataTypeChange('full')}
               />
             </div>
           </div>
@@ -272,6 +279,7 @@ function Hub() {
               onChange={(selectedOption) => setRole(selectedOption.value)}
               className="react-select-container"
               classNamePrefix="react-select"
+              isDisabled={dataType === 'basic'}
             />
           </div>
 
