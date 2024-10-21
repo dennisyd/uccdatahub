@@ -27,6 +27,52 @@ async function getConnection() {
   return await mysql.createConnection(dbConfig);
 }
 
+// New route: Save Profile
+app.post('/api/save-profile', async (req, res) => {
+    const { name, dataType, selectedStates, selectedParties, role, uccType } = req.body;
+  
+    if (!name) {
+      return res.status(400).json({ error: 'Profile name is required' });
+    }
+  
+    try {
+      const connection = await getConnection();
+      const query = 'INSERT INTO profiles (name, config) VALUES (?, ?) ON DUPLICATE KEY UPDATE config = ?';
+      const config = JSON.stringify({ dataType, selectedStates, selectedParties, role, uccType });
+      await connection.execute(query, [name, config, config]);
+      await connection.end();
+      res.status(200).json({ message: 'Profile saved successfully' });
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      res.status(500).json({ error: 'An error occurred while saving the profile' });
+    }
+  });
+  
+  // New route: Load Profile
+  app.get('/api/load-profile', async (req, res) => {
+    const { name } = req.query;
+  
+    if (!name) {
+      return res.status(400).json({ error: 'Profile name is required' });
+    }
+  
+    try {
+      const connection = await getConnection();
+      const [rows] = await connection.execute('SELECT config FROM profiles WHERE name = ?', [name]);
+      await connection.end();
+  
+      if (rows.length > 0) {
+        const config = JSON.parse(rows[0].config);
+        res.status(200).json(config);
+      } else {
+        res.status(404).json({ error: 'Profile not found' });
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      res.status(500).json({ error: 'An error occurred while loading the profile' });
+    }
+  });
+  
 // Secured Parties Route
 app.get('/api/secured-parties', async (req, res) => {
     const { states } = req.query;

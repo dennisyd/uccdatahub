@@ -119,7 +119,8 @@ function Hub() {
       if (response.ok) {
         alert('Profile saved successfully!');
       } else {
-        alert('Failed to save profile. Please try again.');
+        const errorData = await response.json();
+        alert(`Failed to save profile: ${errorData.error}`);
       }
     } catch (error) {
       console.error('Error saving profile:', error);
@@ -128,8 +129,13 @@ function Hub() {
   };
 
   const handleLoadProfile = async () => {
+    if (!profileName) {
+      alert('Please enter a profile name to load.');
+      return;
+    }
+
     try {
-      const response = await fetch(`http://localhost:3001/api/load-profile?name=${profileName}`);
+      const response = await fetch(`http://localhost:3001/api/load-profile?name=${encodeURIComponent(profileName)}`);
       if (response.ok) {
         const profile = await response.json();
         setDataType(profile.dataType);
@@ -139,7 +145,8 @@ function Hub() {
         setUccType(profile.uccType);
         alert('Profile loaded successfully!');
       } else {
-        alert('Failed to load profile. Please check the profile name and try again.');
+        const errorData = await response.json();
+        alert(`Failed to load profile: ${errorData.error}`);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
