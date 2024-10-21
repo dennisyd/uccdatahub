@@ -61,48 +61,83 @@ app.get('/api/secured-parties', async (req, res) => {
 
 // CSV Generation Route
 app.post('/api/generate-csv', async (req, res) => {
-  const { query, states, dataType } = req.body;
+    const { states, dataType, selectedParties, uccType, role } = req.body;
+    
+    try {
+      const connection = await getConnection();
+      
+      let allRows = [];
+      let totalRecordCount = 0;
   
-  try {
-    const connection = await getConnection();
-    
-    let allRows = [];
-    let totalRecordCount = 0;
-
-    console.log('Executing query:', query); // Log the query for debugging
-
-    const [rows] = await connection.execute(query);
-    
-    console.log(`Query returned ${rows.length} rows`); // Log the number of rows returned
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for the given criteria' });
+      for (const state of states) {
+        const securedPartiesString = selectedParties.length > 0 && !selectedParties.some(party => party === 'all')
+          ? selectedParties.map(party => `'${party}'`).join(',')
+          : 'all';
+  
+        console.log('Calling stored procedure with parameters:', {
+          state: state.toLowerCase(),
+          dataType,
+          securedParties: securedPartiesString,
+          uccType,
+          role
+        });
+  
+        try {
+          const [results] = await connection.execute(
+            'CALL GetUCCData(?, ?, ?, ?, ?)',
+            [state.toLowerCase(), dataType, securedPartiesString, uccType, role]
+          );
+  
+          console.log('Raw results from stored procedure:', JSON.stringify(results, null, 2));
+  
+          if (!results || !Array.isArray(results) || results.length < 2) {
+            console.log(`No valid results returned for ${state}`);
+            continue;
+          }
+  
+          // The actual data is in the second result set (index 1)
+          const rows = results[1];
+  
+          if (!Array.isArray(rows) || rows.length === 0) {
+            console.log(`No data rows returned for ${state}`);
+            continue;
+          }
+  
+          console.log(`Query for ${state} returned ${rows.length} rows`);
+  
+          const stateRows = rows.map(row => ({
+            State: state.toUpperCase(),
+            ...row,
+            DataType: dataType,
+          }));
+  
+          allRows = allRows.concat(stateRows);
+          totalRecordCount += rows.length;
+        } catch (stateError) {
+          console.error(`Error processing state ${state}:`, stateError);
+        }
+      }
+  
+      await connection.end();
+  
+      if (totalRecordCount === 0) {
+        return res.status(404).json({ error: 'No data found for the given criteria' });
+      }
+  
+      // Get the fields from the first row
+      const fields = Object.keys(allRows[0]);
+  
+      // Convert the results to CSV
+      const json2csvParser = new Parser({ fields });
+      const csvData = json2csvParser.parse(allRows);
+  
+      // Send the CSV data and the record count
+      res.json({ csv: csvData, recordCount: totalRecordCount });
+    } catch (error) {
+      console.error('Error generating CSV:', error);
+      res.status(500).json({ error: 'An error occurred while generating the CSV', details: error.message });
     }
-
-    allRows = rows.map(row => ({
-      State: states[0].toUpperCase(), // Assuming only one state for now
-      ...row,
-      DataType: dataType,
-    }));
-
-    totalRecordCount = rows.length;
-
-    await connection.end();
-
-    // Get the fields from the first row
-    const fields = Object.keys(allRows[0]);
-
-    // Convert the results to CSV
-    const json2csvParser = new Parser({ fields });
-    const csvData = json2csvParser.parse(allRows);
-
-    // Send the CSV data and the record count
-    res.json({ csv: csvData, recordCount: totalRecordCount });
-  } catch (error) {
-    console.error('Error generating CSV:', error);
-    res.status(500).json({ error: 'An error occurred while generating the CSV', details: error.message });
-  }
-});
+  });
 
 // Data Import Route
 app.post('/api/upload', upload.single('file'), async (req, res) => {

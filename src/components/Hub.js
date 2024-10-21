@@ -4,7 +4,6 @@ import { ChevronDown, DollarSign, Database, MapPin, User, Building, Save, Refres
 import Button from './ui/Button';
 import Radio from './ui/Radio';
 import Select from 'react-select';
-import { generateUCCQuery } from '../utils/uccQueryUtils';
 import './Hub.css';
 
 function Hub() {
@@ -16,7 +15,6 @@ function Hub() {
   const [role, setRole] = useState('all');
   const [uccType, setUccType] = useState('contactInfo');
   const [profileName, setProfileName] = useState('');
-  const [currentQuery, setCurrentQuery] = useState('');
   const [totalRecords, setTotalRecords] = useState(0);
   const [cost, setCost] = useState(0);
 
@@ -40,18 +38,6 @@ function Hub() {
   useEffect(() => {
     fetchSecuredParties();
   }, [selectedStates]);
-
-  useEffect(() => {
-    const queryParams = {
-      dataType,
-      selectedStates,
-      selectedParties,
-      role,
-      uccType
-    };
-    const query = generateUCCQuery(queryParams);
-    setCurrentQuery(query);
-  }, [dataType, selectedStates, selectedParties, role, uccType]);
 
   const fetchSecuredParties = async () => {
     try {
@@ -162,12 +148,11 @@ function Hub() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          query: currentQuery,
           states: selectedStates.map(state => state.value.toLowerCase()),
           dataType,
-          role,
+          selectedParties: selectedParties.map(party => party.value),
           uccType,
-          securedParties: selectedParties.map(party => party.value),
+          role
         }),
       });
 
@@ -199,7 +184,6 @@ function Hub() {
         setRole('all');
         setUccType('contactInfo');
         setProfileName('');
-        setCurrentQuery('');
       } else {
         throw new Error('Failed to generate CSV');
       }
@@ -379,12 +363,6 @@ function Hub() {
             <DollarSign className="button-icon" />
             Process Payment (${cost})
           </Button>
-        </div>
-
-        {/* Query Display Box */}
-        <div className="query-display">
-          <h3>Current SQL Query:</h3>
-          <pre className="query-content">{currentQuery}</pre>
         </div>
       </m.div>
     </div>
