@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion as m } from 'framer-motion';
-import { ChevronDown, DollarSign, Database, MapPin, User, Building, Save, RefreshCw, Download } from 'lucide-react';
+import { Database, MapPin, Building, Download, DollarSign } from 'lucide-react';
 import Button from './ui/Button';
 import Radio from './ui/Radio';
 import Select from 'react-select';
+import DatePicker from 'react-datepicker';
+import ProfileSection from './ProfileSection';
+import 'react-datepicker/dist/react-datepicker.css';
 import './Hub.css';
 
 function Hub() {
@@ -11,12 +14,15 @@ function Hub() {
   const [selectedStates, setSelectedStates] = useState([]);
   const [selectedParties, setSelectedParties] = useState([]);
   const [securedParties, setSecuredParties] = useState([]);
-  const [isProfileOpen, setIsProfileOpen] = useState(true);
   const [role, setRole] = useState('all');
   const [uccType, setUccType] = useState('contactInfo');
-  const [profileName, setProfileName] = useState('');
   const [totalRecords, setTotalRecords] = useState(0);
   const [cost, setCost] = useState(0);
+  const [filingDateStart, setFilingDateStart] = useState(null);
+  const [filingDateEnd, setFilingDateEnd] = useState(null);
+
+  // Assume we have a logged-in user ID (you'll need to implement user authentication)
+  const userId = "12345";
 
   const states = [
     { value: 'all', label: 'All States' },
@@ -78,118 +84,85 @@ function Hub() {
     }
   };
 
-  const handleSaveProfile = async () => {
-    if (!profileName) {
-      alert('Please enter a profile name before saving.');
-      return;
-    }
-
-    const profile = {
-      name: profileName,
-      dataType,
-      selectedStates,
-      selectedParties,
-      role,
-      uccType
-    };
-
-    try {
-      const response = await fetch('http://localhost:3001/api/save-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(profile),
-      });
-
-      if (response.ok) {
-        alert('Profile saved successfully!');
-      } else {
-        const errorData = await response.json();
-        alert(`Failed to save profile: ${errorData.error}`);
-      }
-    } catch (error) {
-      console.error('Error saving profile:', error);
-      alert('An error occurred while saving the profile.');
-    }
-  };
-
-  const handleLoadProfile = async () => {
-    if (!profileName) {
-      alert('Please enter a profile name to load.');
-      return;
-    }
-
-    try {
-      const response = await fetch(`http://localhost:3001/api/load-profile?name=${encodeURIComponent(profileName)}`);
-      if (response.ok) {
-        const profile = await response.json();
-        setDataType(profile.dataType);
-        setSelectedStates(profile.selectedStates);
-        setSelectedParties(profile.selectedParties);
-        setRole(profile.role);
-        setUccType(profile.uccType);
-        alert('Profile loaded successfully!');
-      } else {
-        const errorData = await response.json();
-        alert(`Failed to load profile: ${errorData.error}`);
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
-      alert(`An error occurred while loading the profile: ${error.message}`);
-    }
-  };
-
   const handleGenerateCSV = async () => {
     try {
+      // Format states and parties properly
+      const formattedStates = selectedStates
+        .filter(state => state.value !== 'all')
+        .map(state => state.value.toLowerCase());
+  
+      const formattedParties = selectedParties
+        .filter(party => party.value !== 'all')
+        .map(party => party.value);
+  
+      // Log the data being sent
+      console.log('Sending data:', {
+        states: formattedStates,
+        dataType,
+        selectedParties: formattedParties,
+        uccType,
+        role,
+        filingDateStart: filingDateStart ? filingDateStart.toISOString().split('T')[0] : null,
+        filingDateEnd: filingDateEnd ? filingDateEnd.toISOString().split('T')[0] : null
+      });
+  
       const response = await fetch('http://localhost:3001/api/generate-csv', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          states: selectedStates.map(state => state.value.toLowerCase()),
+          states: formattedStates,
           dataType,
-          selectedParties: selectedParties.map(party => party.value),
+          selectedParties: formattedParties,
           uccType,
-          role
+          role,
+          filingDateStart: filingDateStart ? filingDateStart.toISOString().split('T')[0] : null,
+          filingDateEnd: filingDateEnd ? filingDateEnd.toISOString().split('T')[0] : null
         }),
       });
-
-      if (response.ok) {
-        const { csv, recordCount } = await response.json();
-        
-        // Create and download the CSV file
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = 'ucc_data.csv';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-
-        // Update total records and cost
-        const newTotalRecords = totalRecords + recordCount;
-        setTotalRecords(newTotalRecords);
-        setCost((newTotalRecords * 0.05).toFixed(2));
-
-        alert(`CSV generated successfully. Added ${recordCount} records. Total records: ${newTotalRecords}`);
-
-        // Reset everything
-        setDataType('basic');
-        setSelectedStates([]);
-        setSelectedParties([]);
-        setRole('all');
-        setUccType('contactInfo');
-        setProfileName('');
-      } else {
-        throw new Error('Failed to generate CSV');
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server response:', errorText);
+        throw new Error(`Server responded with status ${response.status}`);
       }
+  
+      const data = await response.json();
+      
+      if (!data.csv) {
+        throw new Error('No CSV data received from server');
+      }
+  
+      // Create and download the CSV file
+      const blob = new Blob([data.csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = 'ucc_data.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+  
+      // Update total records and cost
+      const newTotalRecords = totalRecords + data.recordCount;
+      setTotalRecords(newTotalRecords);
+      setCost((newTotalRecords * 0.05).toFixed(2));
+  
+      alert(`CSV generated successfully. Added ${data.recordCount} records. Total records: ${newTotalRecords}`);
+  
+      // Reset everything
+      setDataType('basic');
+      setSelectedStates([]);
+      setSelectedParties([]);
+      setRole('all');
+      setUccType('contactInfo');
+      setFilingDateStart(null);
+      setFilingDateEnd(null);
     } catch (error) {
       console.error('Error generating CSV:', error);
-      alert('An error occurred while generating the CSV. Please try again.');
+      alert('An error occurred while generating the CSV: ' + error.message);
     }
   };
 
@@ -284,69 +257,45 @@ function Hub() {
               classNamePrefix="react-select"
             />
           </div>
-        </div>
 
-        <div className="profile-section">
-          <div className="profile-header" onClick={() => setIsProfileOpen(!isProfileOpen)}>
-            <h3 className="profile-title">
-              <User className="section-icon" /> Your Profile
-            </h3>
-            <ChevronDown className={`profile-icon ${isProfileOpen ? 'rotate' : ''}`} />
-          </div>
-          <m.div 
-            animate={{ height: isProfileOpen ? 'auto' : '0' }}
-            className="profile-content"
-          >
-            <div className="profile-grid">
-              <div className="profile-item">
-                <strong>Data Type:</strong> 
-                <span>{dataType === 'basic' ? 'Standard' : 'Comprehensive'}</span>
-              </div>
-              <div className="profile-item">
-                <strong>Selected States:</strong> 
-                <span>{selectedStates.map(state => state.label).join(', ') || 'None'}</span>
-              </div>
-              <div className="profile-item">
-                <strong>Secured Parties:</strong> 
-                <span>{selectedParties.map(party => party.label).join(', ') || 'None'}</span>
-              </div>
-              <div className="profile-item">
-                <strong>Role:</strong> 
-                <span>{roles.find(r => r.value === role)?.label}</span>
-              </div>
-              <div className="profile-item">
-                <strong>UCC Type:</strong> 
-                <span>{uccTypes.find(t => t.value === uccType)?.label}</span>
-              </div>
-              <div className="profile-item">
-                <strong>Total Records Downloaded:</strong> 
-                <span>{totalRecords.toLocaleString()}</span>
-              </div>
-              <div className="profile-item">
-                <strong>Estimated Cost:</strong> 
-                <span>${cost}</span>
-              </div>
+          <div className="hub-section">
+            <h3 className="section-title">Filing Date Range</h3>
+            <div className="date-picker-container">
+              <DatePicker
+                selected={filingDateStart}
+                onChange={date => setFilingDateStart(date)}
+                selectsStart
+                startDate={filingDateStart}
+                endDate={filingDateEnd}
+                placeholderText="Start Date"
+              />
+              <DatePicker
+                selected={filingDateEnd}
+                onChange={date => setFilingDateEnd(date)}
+                selectsEnd
+                startDate={filingDateStart}
+                endDate={filingDateEnd}
+                minDate={filingDateStart}
+                placeholderText="End Date"
+              />
             </div>
-          </m.div>
+          </div>
         </div>
 
-        <div className="profile-actions">
-          <input
-            type="text"
-            value={profileName}
-            onChange={(e) => setProfileName(e.target.value)}
-            placeholder="Enter profile name"
-            className="profile-name-input"
-          />
-          <Button onClick={handleSaveProfile} className="profile-button">
-            <Save className="button-icon" />
-            Save Profile
-          </Button>
-          <Button onClick={handleLoadProfile} className="profile-button">
-            <RefreshCw className="button-icon" />
-            Load Profile
-          </Button>
-        </div>
+        <ProfileSection 
+          userId={userId}
+          dataType={dataType}
+          selectedStates={selectedStates}
+          selectedParties={selectedParties}
+          role={role}
+          uccType={uccType}
+          filingDateStart={filingDateStart}
+          filingDateEnd={filingDateEnd}
+          totalRecords={totalRecords}
+          cost={cost}
+          roles={roles}
+          uccTypes={uccTypes}
+        />
 
         <div className="action-buttons">
           <Button 
