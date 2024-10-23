@@ -309,9 +309,58 @@ body {
 }
 
 /* React Select Styles */
-.react-select-container {
-  margin-bottom: 15px;
-}
+/* React Select Styles */
+.react-select__menu {
+    z-index: 9999 !important; /* Ensure dropdown appears above other elements */
+    background-color: white;
+    border: 1px solid #e1e1e1;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-top: 4px;
+  }
+  
+  .profile-select .react-select__menu {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  
+  .profile-select .react-select__option {
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .profile-select .react-select__option:hover {
+    background-color: var(--background-color);
+  }
+  
+  .profile-select .react-select__option--is-selected {
+    background-color: var(--primary-color);
+    color: white;
+  }
+  
+  .profile-select .react-select__control {
+    border: 2px solid var(--primary-color);
+    min-height: 42px;
+  }
+  
+  .profile-select .react-select__control:hover {
+    border-color: var(--secondary-color);
+  }
+  
+  .profile-select .react-select__control--is-focused {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 1px var(--secondary-color);
+  }
+  
+  /* Fix for profile section container */
+  .profile-section {
+    position: relative;
+  }
+  
+  .profile-actions {
+    position: relative;
+    z-index: 1;
+  }
 
 .react-select__control {
   border-radius: var(--border-radius);
