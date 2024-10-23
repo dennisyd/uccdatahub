@@ -93,39 +93,39 @@ function Hub() {
     }
   };
 
-const handleProfileLoad = (config) => {
-  console.log('Loading profile config:', config); // Debug log
-  
-  try {
-    setDataType(config.dataType || 'basic');
-    setSelectedStates(config.selectedStates || []);
-    setSelectedParties(config.selectedParties || []);
-    setRole(config.role || 'all');
-    setUccType(config.uccType || 'contactInfo');
-    setFilingDateStart(config.filingDateStart ? new Date(config.filingDateStart) : null);
-    setFilingDateEnd(config.filingDateEnd ? new Date(config.filingDateEnd) : null);
-  } catch (error) {
-    console.error('Error applying profile:', error);
-    alert('Error loading profile settings');
-  }
-};
+  const handleProfileLoad = (config) => {
+    console.log('Loading profile config:', config); // Debug log
 
-// And ensure the ProfileSection component is rendered with all props:
-<ProfileSection 
-  userId={userId}
-  dataType={dataType}
-  selectedStates={selectedStates}
-  selectedParties={selectedParties}
-  role={role}
-  uccType={uccType}
-  filingDateStart={filingDateStart}
-  filingDateEnd={filingDateEnd}
-  totalRecords={totalRecords}
-  cost={cost}
-  roles={roles}
-  uccTypes={uccTypes}
-  onLoadProfile={handleProfileLoad}  // Make sure this line is present
-/>
+    try {
+      setDataType(config.dataType || 'basic');
+      setSelectedStates(config.selectedStates || []);
+      setSelectedParties(config.selectedParties || []);
+      setRole(config.role || 'all');
+      setUccType(config.uccType || 'contactInfo');
+      setFilingDateStart(config.filingDateStart ? new Date(config.filingDateStart) : null);
+      setFilingDateEnd(config.filingDateEnd ? new Date(config.filingDateEnd) : null);
+    } catch (error) {
+      console.error('Error applying profile:', error);
+      alert('Error loading profile settings');
+    }
+  };
+
+  // And ensure the ProfileSection component is rendered with all props:
+  <ProfileSection
+    userId={userId}
+    dataType={dataType}
+    selectedStates={selectedStates}
+    selectedParties={selectedParties}
+    role={role}
+    uccType={uccType}
+    filingDateStart={filingDateStart}
+    filingDateEnd={filingDateEnd}
+    totalRecords={totalRecords}
+    cost={cost}
+    roles={roles}
+    uccTypes={uccTypes}
+    onLoadProfile={handleProfileLoad}  // Make sure this line is present
+  />
 
   const handleGenerateCSV = async () => {
     try {
@@ -133,11 +133,11 @@ const handleProfileLoad = (config) => {
       const formattedStates = selectedStates
         .filter(state => state.value !== 'all')
         .map(state => state.value.toLowerCase());
-  
+
       const formattedParties = selectedParties
         .filter(party => party.value !== 'all')
         .map(party => party.value);
-  
+
       // Log the data being sent
       console.log('Sending data:', {
         states: formattedStates,
@@ -148,7 +148,7 @@ const handleProfileLoad = (config) => {
         filingDateStart: filingDateStart ? filingDateStart.toISOString().split('T')[0] : null,
         filingDateEnd: filingDateEnd ? filingDateEnd.toISOString().split('T')[0] : null
       });
-  
+
       const response = await fetch('http://localhost:3001/api/generate-csv', {
         method: 'POST',
         headers: {
@@ -164,19 +164,19 @@ const handleProfileLoad = (config) => {
           filingDateEnd: filingDateEnd ? filingDateEnd.toISOString().split('T')[0] : null
         }),
       });
-  
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Server response:', errorText);
         throw new Error(`Server responded with status ${response.status}`);
       }
-  
+
       const data = await response.json();
-      
+
       if (!data.csv) {
         throw new Error('No CSV data received from server');
       }
-  
+
       // Create and download the CSV file
       const blob = new Blob([data.csv], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
@@ -187,14 +187,14 @@ const handleProfileLoad = (config) => {
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
-  
+
       // Update total records and cost
       const newTotalRecords = totalRecords + data.recordCount;
       setTotalRecords(newTotalRecords);
       setCost((newTotalRecords * 0.05).toFixed(2));
-  
+
       alert(`CSV generated successfully. Added ${data.recordCount} records. Total records: ${newTotalRecords}`);
-  
+
       // Reset everything
       setDataType('basic');
       setSelectedStates([]);
@@ -211,14 +211,14 @@ const handleProfileLoad = (config) => {
 
   return (
     <div className="hub-container">
-      <m.div 
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className="hub-content"
       >
         <h2 className="hub-title">UCC Data Hub</h2>
-        
+
         <div className="hub-layout">
           <div className="hub-section">
             <h3 className="section-title">
@@ -252,7 +252,7 @@ const handleProfileLoad = (config) => {
               className="react-select-container"
               classNamePrefix="react-select"
               placeholder="Select states..."
-              isOptionDisabled={(option) => 
+              isOptionDisabled={(option) =>
                 selectedStates.some(state => state.value === 'all') && option.value !== 'all'
               }
               closeMenuOnSelect={false}
@@ -271,7 +271,7 @@ const handleProfileLoad = (config) => {
               className="react-select-container"
               classNamePrefix="react-select"
               placeholder="Select secured parties..."
-              isOptionDisabled={(option) => 
+              isOptionDisabled={(option) =>
                 selectedParties.some(party => party.value === 'all') && option.value !== 'all'
               }
               closeMenuOnSelect={false}
@@ -325,7 +325,7 @@ const handleProfileLoad = (config) => {
           </div>
         </div>
 
-        <ProfileSection 
+        <ProfileSection
           userId={userId}
           dataType={dataType}
           selectedStates={selectedStates}
@@ -342,14 +342,14 @@ const handleProfileLoad = (config) => {
         />
 
         <div className="action-buttons">
-          <Button 
+          <Button
             className="generate-csv-button"
             onClick={handleGenerateCSV}
           >
             <Download className="button-icon" />
             Generate CSV
           </Button>
-          <Button 
+          <Button
             className="payment-button"
             onClick={() => console.log('Processing payment...')}
           >

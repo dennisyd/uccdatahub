@@ -111,68 +111,68 @@ function Home() {
         )}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <input 
-              type="text" 
-              name="firstName" 
-              placeholder="First Name" 
-              value={formData.firstName} 
-              onChange={handleInputChange} 
-              required 
+            <input
+              type="text"
+              name="firstName"
+              placeholder="First Name"
+              value={formData.firstName}
+              onChange={handleInputChange}
+              required
               className="form-input"
             />
           </div>
           <div className="form-group">
-            <input 
-              type="text" 
-              name="lastName" 
-              placeholder="Last Name" 
-              value={formData.lastName} 
-              onChange={handleInputChange} 
-              required 
+            <input
+              type="text"
+              name="lastName"
+              placeholder="Last Name"
+              value={formData.lastName}
+              onChange={handleInputChange}
+              required
               className="form-input"
             />
           </div>
           <div className="form-group">
-            <input 
-              type="text" 
-              name="businessName" 
-              placeholder="Business Name" 
-              value={formData.businessName} 
-              onChange={handleInputChange} 
-              required 
+            <input
+              type="text"
+              name="businessName"
+              placeholder="Business Name"
+              value={formData.businessName}
+              onChange={handleInputChange}
+              required
               className="form-input"
             />
           </div>
           <div className="form-group">
-            <input 
-              type="email" 
-              name="email" 
-              placeholder="Business Email" 
-              value={formData.email} 
-              onChange={handleInputChange} 
-              required 
+            <input
+              type="email"
+              name="email"
+              placeholder="Business Email"
+              value={formData.email}
+              onChange={handleInputChange}
+              required
               className="form-input"
             />
           </div>
           <div className="form-group">
-            <input 
-              type="password" 
-              name="password" 
-              placeholder="Password" 
-              value={formData.password} 
-              onChange={handleInputChange} 
-              required 
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={formData.password}
+              onChange={handleInputChange}
+              required
               className="form-input"
             />
           </div>
           <div className="form-group">
-            <input 
-              type="password" 
-              name="confirmPassword" 
-              placeholder="Confirm Password" 
-              value={formData.confirmPassword} 
-              onChange={handleInputChange} 
-              required 
+            <input
+              type="password"
+              name="confirmPassword"
+              placeholder="Confirm Password"
+              value={formData.confirmPassword}
+              onChange={handleInputChange}
+              required
               className="form-input"
             />
           </div>
