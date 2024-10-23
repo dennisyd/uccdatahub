@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion as m } from 'framer-motion';
 import { Database, MapPin, Building, Download, DollarSign } from 'lucide-react';
 import Button from './ui/Button';
@@ -10,6 +11,8 @@ import 'react-datepicker/dist/react-datepicker.css';
 import './Hub.css';
 
 function Hub() {
+  const navigate = useNavigate();
+  const [userId, setUserId] = useState('');
   const [dataType, setDataType] = useState('basic');
   const [selectedStates, setSelectedStates] = useState([]);
   const [selectedParties, setSelectedParties] = useState([]);
@@ -20,9 +23,6 @@ function Hub() {
   const [cost, setCost] = useState(0);
   const [filingDateStart, setFilingDateStart] = useState(null);
   const [filingDateEnd, setFilingDateEnd] = useState(null);
-
-  // Assume we have a logged-in user ID (you'll need to implement user authentication)
-  const userId = "12345";
 
   const states = [
     { value: 'all', label: 'All States' },
@@ -40,6 +40,15 @@ function Hub() {
     { value: 'uccFiling', label: 'UCC-1 or Initial' },
     { value: 'all', label: 'All UCC Filings' },
   ];
+
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('userId');
+    if (!storedUserId) {
+      navigate('/login');
+    } else {
+      setUserId(storedUserId);
+    }
+  }, [navigate]);
 
   useEffect(() => {
     fetchSecuredParties();
@@ -83,6 +92,40 @@ function Hub() {
       setSelectedParties(selectedOptions);
     }
   };
+
+const handleProfileLoad = (config) => {
+  console.log('Loading profile config:', config); // Debug log
+  
+  try {
+    setDataType(config.dataType || 'basic');
+    setSelectedStates(config.selectedStates || []);
+    setSelectedParties(config.selectedParties || []);
+    setRole(config.role || 'all');
+    setUccType(config.uccType || 'contactInfo');
+    setFilingDateStart(config.filingDateStart ? new Date(config.filingDateStart) : null);
+    setFilingDateEnd(config.filingDateEnd ? new Date(config.filingDateEnd) : null);
+  } catch (error) {
+    console.error('Error applying profile:', error);
+    alert('Error loading profile settings');
+  }
+};
+
+// And ensure the ProfileSection component is rendered with all props:
+<ProfileSection 
+  userId={userId}
+  dataType={dataType}
+  selectedStates={selectedStates}
+  selectedParties={selectedParties}
+  role={role}
+  uccType={uccType}
+  filingDateStart={filingDateStart}
+  filingDateEnd={filingDateEnd}
+  totalRecords={totalRecords}
+  cost={cost}
+  roles={roles}
+  uccTypes={uccTypes}
+  onLoadProfile={handleProfileLoad}  // Make sure this line is present
+/>
 
   const handleGenerateCSV = async () => {
     try {
@@ -295,6 +338,7 @@ function Hub() {
           cost={cost}
           roles={roles}
           uccTypes={uccTypes}
+          onLoadProfile={handleProfileLoad}
         />
 
         <div className="action-buttons">

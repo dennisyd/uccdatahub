@@ -241,62 +241,99 @@ app.post('/api/generate-csv', async (req, res) => {
   }
 });
 
-// Profile Routes
+// Save Profile Route
 app.post('/api/save-profile', async (req, res) => {
-  const { name, dataType, selectedStates, selectedParties, role, uccType, filingDateStart, filingDateEnd, userId } = req.body;
-
-  if (!name || !userId) {
-    return res.status(400).json({ error: 'Profile name and user ID are required' });
-  }
-
-  try {
-    const connection = await getConnection();
-    const config = JSON.stringify({ 
-      dataType, selectedStates, selectedParties, role, uccType, filingDateStart, filingDateEnd 
-    });
-
-    const query = `
-      INSERT INTO profiles (name, config, user_id) 
-      VALUES (?, ?, ?) 
-      ON DUPLICATE KEY UPDATE config = ?
-    `;
-
-    await connection.execute(query, [name, config, userId, config]);
-    await connection.end();
-    
-    res.status(200).json({ message: 'Profile saved successfully' });
-  } catch (error) {
-    console.error('Error saving profile:', error);
-    res.status(500).json({ error: 'An error occurred while saving the profile' });
-  }
-});
-
-app.get('/api/load-profiles', async (req, res) => {
-  const { userId } = req.query;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required' });
-  }
-
-  try {
-    const connection = await getConnection();
-    const [rows] = await connection.execute(
-      'SELECT name, config FROM profiles WHERE user_id = ?', 
-      [userId]
-    );
-    await connection.end();
-
-    const profiles = rows.map(row => ({
-      name: row.name,
-      config: JSON.parse(row.config)
-    }));
-
-    res.status(200).json(profiles);
-  } catch (error) {
-    console.error('Error loading profiles:', error);
-    res.status(500).json({ error: 'An error occurred while loading the profiles' });
-  }
-});
+    const { name, dataType, selectedStates, selectedParties, role, uccType, filingDateStart, filingDateEnd, userId } = req.body;
+  
+    if (!name || !userId) {
+      return res.status(400).json({ error: 'Profile name and user ID are required' });
+    }
+  
+    try {
+      const connection = await getConnection();
+      
+      // Create a clean config object
+      const config = {
+        dataType,
+        selectedStates: selectedStates.map(state => ({
+          value: state.value,
+          label: state.label
+        })),
+        selectedParties: selectedParties.map(party => ({
+          value: party.value,
+          label: party.label
+        })),
+        role,
+        uccType,
+        filingDateStart: filingDateStart || null,
+        filingDateEnd: filingDateEnd || null
+      };
+  
+      // Convert to JSON string for storage
+      const configString = JSON.stringify(config);
+      console.log('Saving profile config:', configString); // Debug log
+  
+      const query = `
+        INSERT INTO profiles (name, config, user_id) 
+        VALUES (?, ?, ?) 
+        ON DUPLICATE KEY UPDATE config = ?
+      `;
+  
+      await connection.execute(query, [name, configString, userId, configString]);
+      await connection.end();
+      
+      res.status(200).json({ message: 'Profile saved successfully' });
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      res.status(500).json({ error: 'An error occurred while saving the profile' });
+    }
+  });
+  
+  // Load Profiles Route
+  app.get('/api/load-profiles', async (req, res) => {
+    const { userId } = req.query;
+  
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+  
+    try {
+      const connection = await getConnection();
+      
+      const [rows] = await connection.execute(
+        'SELECT name, config FROM profiles WHERE user_id = ?', 
+        [userId]
+      );
+  
+      const profiles = rows.map(row => {
+        try {
+          // Parse the stored JSON string
+          const config = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
+          
+          return {
+            name: row.name,
+            config: {
+              ...config,
+              // Ensure dates are properly formatted
+              filingDateStart: config.filingDateStart ? config.filingDateStart : null,
+              filingDateEnd: config.filingDateEnd ? config.filingDateEnd : null
+            }
+          };
+        } catch (parseError) {
+          console.error(`Error parsing config for profile ${row.name}:`, parseError);
+          console.error('Raw config:', row.config);
+          return null;
+        }
+      }).filter(profile => profile !== null);
+  
+      await connection.end();
+      console.log('Sending profiles:', JSON.stringify(profiles, null, 2)); // Debug log
+      res.status(200).json(profiles);
+    } catch (error) {
+      console.error('Error loading profiles:', error);
+      res.status(500).json({ error: 'An error occurred while loading the profiles' });
+    }
+  });
 
 // Configuration Routes
 app.post('/api/save-configuration', async (req, res) => {

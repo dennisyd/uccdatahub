@@ -6,14 +6,19 @@
   --background-color: #f0f4f8;
   --text-color: #2c3e50;
   --border-radius: 12px;
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
+/* Base Styles */
 body {
   font-family: 'Poppins', sans-serif;
   background-color: var(--background-color);
   color: var(--text-color);
 }
 
+/* Hub Container */
 .hub-container {
   min-height: 100vh;
   display: flex;
@@ -27,7 +32,7 @@ body {
   max-width: 1200px;
   background-color: #ffffff;
   border-radius: var(--border-radius);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
   padding: 30px;
 }
@@ -42,6 +47,7 @@ body {
   letter-spacing: 2px;
 }
 
+/* Hub Layout */
 .hub-layout {
   display: flex;
   flex-wrap: wrap;
@@ -55,13 +61,13 @@ body {
   background-color: #ffffff;
   border-radius: var(--border-radius);
   padding: 20px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
   transition: all 0.3s ease;
 }
 
 .hub-section:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .section-title {
@@ -77,17 +83,57 @@ body {
   margin-right: 10px;
 }
 
+/* Radio Group */
 .radio-group {
   display: flex;
   gap: 20px;
 }
 
+.Radio {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.Radio__input {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--primary-color);
+  border-radius: 50%;
+  margin-right: 10px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.Radio__input:checked {
+  background-color: var(--primary-color);
+}
+
+.Radio__input:checked::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background-color: #ffffff;
+  border-radius: 50%;
+}
+
+.Radio__label {
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+/* Profile Section */
 .profile-section {
   background-color: #ffffff;
   border-radius: var(--border-radius);
   overflow: hidden;
   margin-bottom: 30px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 
 .profile-header {
@@ -118,6 +164,7 @@ body {
 
 .profile-content {
   overflow: hidden;
+  background-color: #ffffff;
 }
 
 .profile-grid {
@@ -125,6 +172,7 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
   padding: 20px;
+  border-bottom: 1px solid #eee;
 }
 
 .profile-item {
@@ -137,22 +185,44 @@ body {
   margin-bottom: 5px;
 }
 
+/* Profile Actions */
 .profile-actions {
   display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+}
+
+.profile-save-section {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.profile-load-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .profile-name-input {
   flex: 1;
-  padding: 10px;
+  padding: 0.75rem;
   border: 2px solid var(--primary-color);
   border-radius: var(--border-radius);
   font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.profile-name-input:focus {
+  outline: none;
+  border-color: var(--secondary-color);
+  box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.1);
 }
 
 .profile-button {
-  padding: 10px 15px;
+  padding: 0.75rem 1.5rem;
   background-color: var(--primary-color);
   color: #ffffff;
   border: none;
@@ -161,13 +231,24 @@ body {
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
+  gap: 0.5rem;
   font-weight: 600;
+  min-width: 130px;
+  justify-content: center;
 }
 
 .profile-button:hover {
   background-color: var(--secondary-color);
+  transform: translateY(-1px);
 }
 
+.profile-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Action Buttons */
 .action-buttons {
   display: flex;
   gap: 20px;
@@ -223,31 +304,35 @@ body {
 
 .button-icon {
   margin-right: 10px;
+  width: 1.2rem;
+  height: 1.2rem;
 }
 
-/* Custom styles for React Select */
+/* React Select Styles */
 .react-select-container {
   margin-bottom: 15px;
 }
 
 .react-select__control {
   border-radius: var(--border-radius);
-  border: 2px solid var(--primary-color);
+  border: 2px solid var(--primary-color) !important;
   transition: all 0.3s ease;
+  min-height: 42px !important;
 }
 
 .react-select__control:hover {
-  border-color: var(--secondary-color);
+  border-color: var(--secondary-color) !important;
 }
 
 .react-select__control--is-focused {
-  box-shadow: 0 0 0 1px var(--secondary-color);
-  border-color: var(--secondary-color);
+  box-shadow: 0 0 0 1px var(--secondary-color) !important;
+  border-color: var(--secondary-color) !important;
 }
 
 .react-select__menu {
   border-radius: var(--border-radius);
   overflow: hidden;
+  z-index: 100;
 }
 
 .react-select__option {
@@ -281,45 +366,6 @@ body {
   color: #ffffff;
 }
 
-/* Custom styles for Radio component */
-.Radio {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.Radio__input {
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--primary-color);
-  border-radius: 50%;
-  margin-right: 10px;
-  position: relative;
-  transition: all 0.3s ease;
-}
-
-.Radio__input:checked {
-  background-color: var(--primary-color);
-}
-
-.Radio__input:checked::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 10px;
-  height: 10px;
-  background-color: #ffffff;
-  border-radius: 50%;
-}
-
-.Radio__label {
-  font-size: 1rem;
-  color: var(--text-color);
-}
-
 .react-select__option[aria-label="All States"],
 .react-select__option[aria-label="All Secured Parties"] {
   font-weight: bold;
@@ -331,35 +377,18 @@ body {
   background-color: #e1e8ed;
 }
 
-/* Query Display styles */
-.query-display {
-  margin-top: 20px;
-  padding: 10px;
-  background-color: #f0f0f0;
-  border-radius: var(--border-radius);
-  overflow-x: auto;
+/* Date Picker Container */
+.date-picker-container {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
-.query-display h3 {
-  margin-bottom: 10px;
-  color: var(--primary-color);
-  font-weight: 600;
+.date-picker-container .react-datepicker-wrapper {
+  flex: 1;
 }
 
-.query-content {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-family: monospace;
-  font-size: 14px;
-  line-height: 1.4;
-  max-width: 100%;
-  overflow-x: auto;
-  background-color: #ffffff;
-  padding: 10px;
-  border-radius: var(--border-radius);
-  border: 1px solid var(--primary-color);
-}
-
+/* Media Queries */
 @media (max-width: 768px) {
   .hub-layout {
     flex-direction: column;
@@ -373,7 +402,14 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .profile-actions,
+  .profile-actions {
+    padding: 1rem;
+  }
+
+  .profile-save-section {
+    flex-direction: column;
+  }
+
   .action-buttons {
     flex-direction: column;
   }
@@ -383,5 +419,9 @@ body {
   .generate-csv-button,
   .payment-button {
     width: 100%;
+  }
+
+  .date-picker-container {
+    flex-direction: column;
   }
 }
