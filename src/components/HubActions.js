@@ -109,84 +109,112 @@ function HubActions({
         }
     };
 
-    const handlePaymentSuccess = async (order) => {
+    const handlePaymentSuccess = async (data) => {
         try {
             setIsPaying(true);
-
+            console.log('Starting payment processing with data:', data);
+    
+            // Get and verify userId
+            const userId = localStorage.getItem('userId');
+            console.log('Retrieved userId:', userId);
+            
+            if (!userId) {
+                throw new Error('User ID not found. Please log in again.');
+            }
+    
+            // Log the request body before sending
+            const requestBody = {
+                orderID: data.orderID,
+                csvData: csvData,
+                amount: discountedCost || cost,
+                recordCount: totalRecords,
+                userId: userId
+            };
+            console.log('Sending verification request with:', requestBody);
+    
             // Verify the payment with your server
             const response = await fetch('http://localhost:3001/api/verify-payment', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    orderID: order.id,
-                    csvData: csvData,
-                    amount: discountedCost || cost,
-                    recordCount: totalRecords,
-                    userId: localStorage.getItem('userId')
-                }),
+                body: JSON.stringify(requestBody),
             });
-
-            const data = await response.json();
-            if (data.success) {
+    
+            console.log('Server response status:', response.status);
+            const result = await response.json();
+            console.log('Server response data:', result);
+    
+            if (!response.ok) {
+                throw new Error(`Payment verification failed: ${result.message || response.statusText}`);
+            }
+    
+            if (result.success) {
                 try {
-                    // Generate the full URL using the backend server address
-                    const userId = localStorage.getItem('userId');
-                    const transactionId = data.transactionId;
-                    const downloadUrl = `http://localhost:3001/api/download-transaction/${transactionId}/${userId}`;
-
-                    // Create a fetch request to get the CSV data
-                    const downloadResponse = await fetch(downloadUrl);
+                    console.log('Starting download process for transaction:', result.transactionId);
+                    
+                    // Download the file using a direct fetch
+                    const downloadResponse = await fetch(
+                        `http://localhost:3001/api/download-transaction/${result.transactionId}/${userId}`,
+                        {
+                            method: 'GET',
+                            headers: {
+                                'Accept': 'text/csv',
+                            },
+                        }
+                    );
+    
+                    console.log('Download response status:', downloadResponse.status);
+    
                     if (!downloadResponse.ok) {
-                        throw new Error('Download failed');
+                        const errorText = await downloadResponse.text();
+                        console.error('Download response error:', errorText);
+                        throw new Error(`Download failed: ${errorText}`);
                     }
-
+    
                     // Get the CSV content
-                    const csvContent = await downloadResponse.text();
-
-                    // Create a Blob and download link
-                    const blob = new Blob([csvContent], { type: 'text/csv' });
+                    const blob = await downloadResponse.blob();
+                    console.log('Successfully created blob of size:', blob.size);
+    
                     const url = window.URL.createObjectURL(blob);
+                    
+                    // Create and trigger download
                     const a = document.createElement('a');
                     a.style.display = 'none';
                     a.href = url;
-                    a.download = `ucc_data_${transactionId}.csv`;
-                    
-                    // Trigger download
+                    a.download = `ucc_data_${result.transactionId}.csv`;
                     document.body.appendChild(a);
                     a.click();
                     
                     // Cleanup
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
-
-                    // Show success message and ask user preference
+    
+                    alert('Download complete! The file has been saved to your downloads folder.');
+                    
                     const startNew = window.confirm(
-                        'Download started! Would you like to start a new search? (Your current data will be cleared)'
+                        'Would you like to start a new search? (Your current data will be cleared)'
                     );
-
+    
                     if (startNew) {
                         resetForm();
                     } else {
                         setIsPaying(false);
                         setHasGeneratedCsv(false);
-                        alert('You can find this download in your transaction history if needed.');
                     }
-
+    
                 } catch (downloadError) {
-                    console.error('Download error:', downloadError);
-                    alert(
-                        'Error starting download. You can find this purchase in your transaction history to download later.'
-                    );
-                    setIsPaying(false);
+                    console.error('Download error details:', downloadError);
+                    throw new Error(`Download failed: ${downloadError.message}`);
                 }
             } else {
-                throw new Error(data.message || 'Payment verification failed');
+                throw new Error(result.message || 'Payment verification failed');
             }
         } catch (error) {
-            console.error('Payment processing failed:', error);
-            alert('Error processing payment: ' + error.message);
+            console.error('Full error details:', error);
+            console.error('Error stack:', error.stack);
+            alert(`Error occurred: ${error.message}`);
+        } finally {
             setIsPaying(false);
         }
     };

@@ -6,52 +6,66 @@ function PayPalButton({ amount, onSuccess, onError, disabled }) {
   const [paymentComplete, setPaymentComplete] = useState(false);
 
   const createOrder = (data, actions) => {
-    console.log('Creating PayPal order with amount:', amount);
-    
-    // Ensure amount is properly formatted and greater than 0
-    const formattedAmount = Math.max(0.01, Number(amount)).toFixed(2);
-    console.log('Formatted amount:', formattedAmount);
+    try {
+      console.log('Creating PayPal order with amount:', amount);
+      
+      const formattedAmount = Math.max(0.01, Number(amount)).toFixed(2);
+      console.log('Formatted amount:', formattedAmount);
 
-    return actions.order.create({
-      purchase_units: [
-        {
-          amount: {
-            value: formattedAmount,
-            currency_code: "USD"
-          },
-          description: "UCC Data Export"
+      return actions.order.create({
+        purchase_units: [
+          {
+            amount: {
+              value: formattedAmount,
+              currency_code: "USD"
+            },
+            description: "UCC Data Export"
+          }
+        ],
+        application_context: {
+          shipping_preference: "NO_SHIPPING"
         }
-      ],
-      application_context: {
-        shipping_preference: "NO_SHIPPING",
-        user_action: "PAY_NOW"
-      }
-    }).then(orderId => {
-      console.log('Order created successfully:', orderId);
-      return orderId;
-    }).catch(err => {
-      console.error('Error creating order:', err);
+      }).then(orderId => {
+        console.log('PayPal order created successfully:', orderId);
+        return orderId;
+      }).catch(err => {
+        console.error('Error creating PayPal order:', err);
+        throw err;
+      });
+    } catch (err) {
+      console.error('Error in createOrder:', err);
       throw err;
-    });
+    }
   };
 
   const onApprove = async (data, actions) => {
     try {
       setIsProcessing(true);
-      console.log('Payment approved, capturing order:', data.orderID);
+      console.log('Payment approved, full PayPal data:', data);
       
-      // First capture the order
-      const capturedOrder = await actions.order.capture();
-      console.log('Order captured successfully:', capturedOrder);
-
-      // Set payment as complete
+      // Log the orderId specifically
+      console.log('Order ID:', data.orderID);
+      
+      // Set payment complete before calling onSuccess
       setPaymentComplete(true);
       
-      // Trigger success callback
-      onSuccess(capturedOrder);
+      // Call onSuccess and await its completion
+      await onSuccess({
+        orderID: data.orderID,
+        payerID: data.payerID,
+        paymentSource: data.paymentSource,
+        paymentID: data.paymentID
+      });
+      
+      console.log('Success callback completed');
       
     } catch (err) {
-      console.error('Error processing payment:', err);
+      console.error('Error in onApprove:', err);
+      console.error('Error details:', {
+        message: err.message,
+        stack: err.stack,
+        data: err.data
+      });
       onError(err);
     } finally {
       setIsProcessing(false);
@@ -59,7 +73,11 @@ function PayPalButton({ amount, onSuccess, onError, disabled }) {
   };
 
   const handleError = (err) => {
-    console.error('PayPal error:', err);
+    console.error('PayPal error:', {
+      message: err.message,
+      stack: err.stack,
+      data: err.data
+    });
     setIsProcessing(false);
     onError(err);
   };
@@ -69,9 +87,7 @@ function PayPalButton({ amount, onSuccess, onError, disabled }) {
     setIsProcessing(false);
   };
 
-  // Add validation for amount
   if (amount && (isNaN(amount) || amount <= 0)) {
-    console.error('Invalid amount:', amount);
     return (
       <div className="text-red-600">
         Invalid amount specified
@@ -93,13 +109,7 @@ function PayPalButton({ amount, onSuccess, onError, disabled }) {
           )}
           {paymentComplete ? (
             <div className="p-4 bg-green-100 text-green-700 rounded-md mb-4">
-              Payment successful! Your download will begin automatically.
-              If it doesn't start, <button 
-                onClick={() => onSuccess({ id: 'manual-download' })}
-                className="text-green-800 underline"
-              >
-                click here
-              </button>
+              Payment successful! Processing your download...
             </div>
           ) : (
             <PayPalButtons
@@ -114,7 +124,7 @@ function PayPalButton({ amount, onSuccess, onError, disabled }) {
                 label: "paypal"
               }}
               disabled={disabled || isProcessing}
-              forceReRender={[amount]} // Force re-render when amount changes
+              forceReRender={[amount]}
             />
           )}
         </>

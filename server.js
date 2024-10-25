@@ -8,6 +8,7 @@ const fs = require('fs');
 const bcrypt = require('bcrypt');
 const { Parser } = require('json2csv');
 const paypal = require('@paypal/checkout-server-sdk');
+require('dotenv').config(); // Load environment variables
 
 // App Configuration
 const app = express();
@@ -15,19 +16,33 @@ const upload = multer({ dest: 'uploads/' });
 
 // CORS Configuration
 app.use(cors({
-    origin: 'http://localhost:3000', // Replace with your React app's URL
+    origin: 'http://localhost:3000',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
-    exposedHeaders: ['Content-Disposition'] // Important for file downloads
+    exposedHeaders: ['Content-Disposition']
 }));
 
-// Initialize PayPal Environment and Client
-const environment = new paypal.core.SandboxEnvironment(
-  process.env.PAYPAL_CLIENT_ID,
-  process.env.PAYPAL_CLIENT_SECRET
-);
-const paypalClient = new paypal.core.PayPalHttpClient(environment);
+// PayPal Configuration
+let paypalClient;
+try {
+    // Initialize PayPal with error handling
+    const clientId = process.env.REACT_APP_PAYPAL_CLIENT_ID;
+    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+    
+    if (!clientId || !clientSecret) {
+        throw new Error('PayPal credentials are not configured properly');
+    }
+
+    console.log('Initializing PayPal with client ID:', clientId.substring(0, 8) + '...');
+    
+    const environment = new paypal.core.SandboxEnvironment(clientId, clientSecret);
+    paypalClient = new paypal.core.PayPalHttpClient(environment);
+    
+    console.log('PayPal client initialized successfully');
+} catch (error) {
+    console.error('PayPal initialization error:', error);
+}
 
 // Additional Middleware
 app.use(bodyParser.json());
@@ -36,7 +51,7 @@ app.use(bodyParser.json());
 const dbConfig = {
     host: 'localhost',
     user: 'ucc_user',
-    password: 'Java28xuvds!!',
+    password: 'Java28xuvds!!', // Consider using environment variables for sensitive information
     database: 'ucc_data_hub',
 };
 
@@ -142,17 +157,23 @@ app.get('/api/secured-parties', async (req, res) => {
 
     try {
         const connection = await getConnection();
-        const stateList = states.split(',').filter(state => state.trim() !== '');
+        const stateList = states.split(',').map(state => state.trim()).filter(state => state !== '');
 
         if (stateList.length === 0) {
             await connection.end();
             return res.json([{ value: 'all', label: 'All Secured Parties' }]);
         }
 
+        // Sanitize table names to prevent SQL injection
+        const validStates = stateList.filter(state => /^[a-zA-Z0-9_]+$/.test(state));
+        if (validStates.length !== stateList.length) {
+            await connection.end();
+            return res.status(400).json({ message: 'Invalid state names provided' });
+        }
+
         let query = 'SELECT DISTINCT `Secured Party Name` FROM (';
-        const queryParts = stateList.map(state => {
-            const cleanState = state.trim().toLowerCase();
-            return `SELECT \`Secured Party Name\` FROM \`${cleanState}\``;
+        const queryParts = validStates.map(state => {
+            return `SELECT \`Secured Party Name\` FROM \`${state}\``;
         });
 
         query += queryParts.join(' UNION ALL ') + ') AS combined_tables WHERE `Secured Party Name` IS NOT NULL ORDER BY `Secured Party Name`';
@@ -301,10 +322,10 @@ app.post('/api/save-profile', async (req, res) => {
         console.log('Saving profile config:', configString); // Debug log
 
         const query = `
-        INSERT INTO profiles (name, config, user_id) 
-        VALUES (?, ?, ?) 
-        ON DUPLICATE KEY UPDATE config = ?
-      `;
+            INSERT INTO profiles (name, config, user_id) 
+            VALUES (?, ?, ?) 
+            ON DUPLICATE KEY UPDATE config = ?
+        `;
 
         await connection.execute(query, [name, configString, userId, configString]);
         await connection.end();
@@ -388,98 +409,98 @@ app.post('/api/save-configuration', async (req, res) => {
 });
 
 app.post('/api/verify-payment', async (req, res) => {
-  const { orderID, csvData, amount, recordCount, userId } = req.body;
-
-  try {
-    // Validate required fields
-    if (!orderID || !csvData || !amount || !userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required payment information'
-      });
-    }
-
-    // Capture the order with PayPal
-    const request = new paypal.orders.OrdersCaptureRequest(orderID);
-    request.requestBody({}); // Empty object as per PayPal SDK requirements
-
-    const captureResponse = await paypalClient.execute(request);
-    const status = captureResponse.result.status;
-
-    if (status !== 'COMPLETED') {
-      return res.status(400).json({
-        success: false,
-        message: `Payment not completed. Status: ${status}`
-      });
-    }
-
-    // Proceed to store transaction details in the database
-    const connection = await getConnection();
+    const { orderID, csvData, amount, recordCount, userId } = req.body;
 
     try {
-      // Start transaction
-      await connection.beginTransaction();
+        // Validate required fields
+        if (!orderID || !csvData || !amount || !userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required payment information'
+            });
+        }
 
-      // Store transaction details
-      const [result] = await connection.execute(
-        `INSERT INTO transactions 
-        (user_id, order_id, amount, record_count, status, csv_data) 
-        VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          userId,
-          orderID,
-          amount,
-          recordCount || 0,
-          'COMPLETED',
-          csvData
-        ]
-      );
+        // Capture the order with PayPal
+        const request = new paypal.orders.OrdersCaptureRequest(orderID);
+        request.requestBody({}); // Empty object as per PayPal SDK requirements
 
-      // Update user's last purchase date if needed
-      await connection.execute(
-        `UPDATE users 
-        SET last_purchase = CURRENT_TIMESTAMP 
-        WHERE id = ?`,
-        [userId]
-      );
+        const captureResponse = await paypalClient.execute(request);
+        const status = captureResponse.result.status;
 
-      // Commit transaction
-      await connection.commit();
+        if (status !== 'COMPLETED') {
+            return res.status(400).json({
+                success: false,
+                message: `Payment not completed. Status: ${status}`
+            });
+        }
 
-      // Log successful transaction
-      console.log(`Payment verified and stored: OrderID ${orderID}, UserID ${userId}`);
+        // Proceed to store transaction details in the database
+        const connection = await getConnection();
 
-      res.json({
-        success: true,
-        message: 'Payment verified and recorded successfully',
-        orderID: orderID,
-        transactionId: result.insertId
-      });
+        try {
+            // Start transaction
+            await connection.beginTransaction();
 
-    } catch (dbError) {
-      // Rollback transaction on error
-      await connection.rollback();
-      throw dbError;
-    } finally {
-      await connection.end();
+            // Store transaction details
+            const [result] = await connection.execute(
+                `INSERT INTO transactions 
+                (user_id, order_id, amount, record_count, status, csv_data) 
+                VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    userId,
+                    orderID,
+                    amount,
+                    recordCount || 0,
+                    'COMPLETED',
+                    csvData
+                ]
+            );
+
+            // Update user's last purchase date if needed
+            await connection.execute(
+                `UPDATE users 
+                SET last_purchase = CURRENT_TIMESTAMP 
+                WHERE id = ?`,
+                [userId]
+            );
+
+            // Commit transaction
+            await connection.commit();
+
+            // Log successful transaction
+            console.log(`Payment verified and stored: OrderID ${orderID}, UserID ${userId}`);
+
+            res.json({
+                success: true,
+                message: 'Payment verified and recorded successfully',
+                orderID: orderID,
+                transactionId: result.insertId
+            });
+
+        } catch (dbError) {
+            // Rollback transaction on error
+            await connection.rollback();
+            throw dbError;
+        } finally {
+            await connection.end();
+        }
+
+    } catch (error) {
+        console.error('Payment verification error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error verifying payment: ' + error.message
+        });
     }
-
-  } catch (error) {
-    console.error('Payment verification error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error verifying payment: ' + error.message
-    });
-  }
 });
 
-// Add an endpoint to retrieve past transactions
+// Retrieve Past Transactions
 app.get('/api/transactions/:userId', async (req, res) => {
     const { userId } = req.params;
 
     try {
         const connection = await getConnection();
-        
+
         const [rows] = await connection.execute(
             `SELECT 
                 id,
@@ -510,14 +531,13 @@ app.get('/api/transactions/:userId', async (req, res) => {
     }
 });
 
-// Add an endpoint to download past purchases
+// Download Past Purchases
 app.get('/api/download-transaction/:transactionId/:userId', async (req, res) => {
     const { transactionId, userId } = req.params;
 
     try {
         const connection = await getConnection();
-        
-        // Verify user owns this transaction
+
         const [rows] = await connection.execute(
             `SELECT csv_data 
             FROM transactions 
@@ -536,17 +556,12 @@ app.get('/api/download-transaction/:transactionId/:userId', async (req, res) => 
 
         const csvData = rows[0].csv_data;
 
-        // Set proper headers for file download
-        res.set({
-            'Content-Type': 'text/csv',
-            'Content-Disposition': `attachment; filename=ucc_data_${transactionId}.csv`,
-            'Content-Length': Buffer.byteLength(csvData),
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-        });
-        
-        // Send the file
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=ucc_data_${transactionId}.csv`);
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+        res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+
         res.send(csvData);
 
     } catch (error) {
@@ -558,6 +573,7 @@ app.get('/api/download-transaction/:transactionId/:userId', async (req, res) => 
     }
 });
 
+// Load Configuration
 app.get('/api/load-configuration', async (req, res) => {
     const { state } = req.query;
 
@@ -636,11 +652,11 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 async function createTable(connection, tableName, columns) {
     const columnDefinitions = columns.map(col => `\`${col.content}\` VARCHAR(255)`).join(', ');
     const query = `
-    CREATE TABLE IF NOT EXISTS \`${tableName}\` (
-      id INT AUTO_INCREMENT PRIMARY KEY, 
-      ${columnDefinitions}
-    )
-  `;
+        CREATE TABLE IF NOT EXISTS \`${tableName}\` (
+            id INT AUTO_INCREMENT PRIMARY KEY, 
+            ${columnDefinitions}
+        )
+    `;
     await connection.execute(query);
 }
 
@@ -663,6 +679,9 @@ async function processCSV(filePath, connection, table1Name, table2Name, commonCo
                 } catch (error) {
                     reject(error);
                 }
+            })
+            .on('error', (error) => {
+                reject(error);
             });
     });
 }
@@ -672,10 +691,10 @@ async function insertRow(connection, tableName, columns, row) {
     const values = columnNames.map(col => row[col] || null);
     const placeholders = columnNames.map(() => '?').join(', ');
     const query = `
-    INSERT INTO \`${tableName}\` 
-    (\`${columnNames.join('`, `')}\`) 
-    VALUES (${placeholders})
-  `;
+        INSERT INTO \`${tableName}\` 
+        (\`${columnNames.join('`, `')}\`) 
+        VALUES (${placeholders})
+    `;
     await connection.execute(query, values);
 }
 
