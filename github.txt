@@ -1,0 +1,3 @@
+PS C:\Users\denni\gauge-your-idea-platform> git reset --hard HEAD
+HEAD is now at 1e6b4d2 Added delete button for my ideas
+PS C:\Users\denni\gauge-your-idea-platform> git clean -fd

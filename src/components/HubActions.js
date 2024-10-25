@@ -57,15 +57,14 @@ function HubActions({
                 );
             }
 
-            const formattedParties = selectedParties
-                .filter((party) => party.value !== 'all')
-                .map((party) => party.value);
-
-            if (selectedParties.some(party => party.value === 'all')) {
-                formattedParties.push(...securedParties
-                    .filter(party => party.value !== 'all')
-                    .map(party => party.value)
-                );
+            let securedPartiesString = 'all';
+            if (!selectedParties.some(party => party.value === 'all')) {
+                // Only format parties if not selecting 'all'
+                const formattedParties = selectedParties.map(party =>
+                    // Escape any single quotes in party names
+                    `'${party.value.replace(/'/g, "''")}'`
+                ).join(',');
+                securedPartiesString = formattedParties;
             }
 
             const response = await fetch('http://localhost:3001/api/generate-csv', {
@@ -76,7 +75,7 @@ function HubActions({
                 body: JSON.stringify({
                     states: formattedStates,
                     dataType,
-                    selectedParties: formattedParties,
+                    selectedParties: securedPartiesString,
                     uccType,
                     role,
                     filingDateStart: filingDateStart ? filingDateStart.toISOString().split('T')[0] : null,
@@ -113,16 +112,14 @@ function HubActions({
         try {
             setIsPaying(true);
             console.log('Starting payment processing with data:', data);
-    
-            // Get and verify userId
+
             const userId = localStorage.getItem('userId');
             console.log('Retrieved userId:', userId);
-            
+
             if (!userId) {
                 throw new Error('User ID not found. Please log in again.');
             }
-    
-            // Log the request body before sending
+
             const requestBody = {
                 orderID: data.orderID,
                 csvData: csvData,
@@ -130,9 +127,7 @@ function HubActions({
                 recordCount: totalRecords,
                 userId: userId
             };
-            console.log('Sending verification request with:', requestBody);
-    
-            // Verify the payment with your server
+
             const response = await fetch('http://localhost:3001/api/verify-payment', {
                 method: 'POST',
                 headers: {
@@ -140,20 +135,15 @@ function HubActions({
                 },
                 body: JSON.stringify(requestBody),
             });
-    
-            console.log('Server response status:', response.status);
+
             const result = await response.json();
-            console.log('Server response data:', result);
-    
+
             if (!response.ok) {
                 throw new Error(`Payment verification failed: ${result.message || response.statusText}`);
             }
-    
+
             if (result.success) {
                 try {
-                    console.log('Starting download process for transaction:', result.transactionId);
-                    
-                    // Download the file using a direct fetch
                     const downloadResponse = await fetch(
                         `http://localhost:3001/api/download-transaction/${result.transactionId}/${userId}`,
                         {
@@ -163,22 +153,15 @@ function HubActions({
                             },
                         }
                     );
-    
-                    console.log('Download response status:', downloadResponse.status);
-    
+
                     if (!downloadResponse.ok) {
                         const errorText = await downloadResponse.text();
-                        console.error('Download response error:', errorText);
                         throw new Error(`Download failed: ${errorText}`);
                     }
-    
-                    // Get the CSV content
+
                     const blob = await downloadResponse.blob();
-                    console.log('Successfully created blob of size:', blob.size);
-    
                     const url = window.URL.createObjectURL(blob);
                     
-                    // Create and trigger download
                     const a = document.createElement('a');
                     a.style.display = 'none';
                     a.href = url;
@@ -186,33 +169,31 @@ function HubActions({
                     document.body.appendChild(a);
                     a.click();
                     
-                    // Cleanup
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
-    
+
                     alert('Download complete! The file has been saved to your downloads folder.');
                     
                     const startNew = window.confirm(
                         'Would you like to start a new search? (Your current data will be cleared)'
                     );
-    
+
                     if (startNew) {
                         resetForm();
                     } else {
                         setIsPaying(false);
                         setHasGeneratedCsv(false);
                     }
-    
+
                 } catch (downloadError) {
-                    console.error('Download error details:', downloadError);
+                    console.error('Download error:', downloadError);
                     throw new Error(`Download failed: ${downloadError.message}`);
                 }
             } else {
                 throw new Error(result.message || 'Payment verification failed');
             }
         } catch (error) {
-            console.error('Full error details:', error);
-            console.error('Error stack:', error.stack);
+            console.error('Payment/download error:', error);
             alert(`Error occurred: ${error.message}`);
         } finally {
             setIsPaying(false);

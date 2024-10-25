@@ -23,6 +23,10 @@ app.use(cors({
     exposedHeaders: ['Content-Disposition']
 }));
 
+// Increase payload size limits
+app.use(bodyParser.json({limit: '50mb'}));
+app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
+
 // PayPal Configuration
 let paypalClient;
 try {
@@ -212,9 +216,8 @@ app.post('/api/generate-csv', async (req, res) => {
         let totalRecordCount = 0;
 
         for (const state of states) {
-            const securedPartiesString = selectedParties && selectedParties.length > 0
-                ? selectedParties.map(party => `'${party}'`).join(',')
-                : 'all';
+            // selectedParties is already formatted as a string
+            const securedPartiesString = selectedParties;
 
             console.log(`Processing state: ${state}`);
             console.log(`Secured parties: ${securedPartiesString}`);
@@ -238,9 +241,9 @@ app.post('/api/generate-csv', async (req, res) => {
                     JSON.stringify(results.map(r => Object.keys(r)), null, 2)
                 );
 
-                // The second element (index 1) contains the actual data rows
-                if (results && Array.isArray(results[1])) {
-                    const rows = results[1];
+                // The first result set contains the actual data
+                if (results && Array.isArray(results[0])) {
+                    const rows = results[0];
                     console.log(`Found ${rows.length} rows for ${state}`);
 
                     const stateRows = rows.map(row => ({
