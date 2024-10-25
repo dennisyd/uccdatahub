@@ -7,13 +7,29 @@ const csv = require('csv-parser');
 const fs = require('fs');
 const bcrypt = require('bcrypt');
 const { Parser } = require('json2csv');
+const paypal = require('@paypal/checkout-server-sdk');
 
 // App Configuration
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
-// Middleware
-app.use(cors());
+// CORS Configuration
+app.use(cors({
+    origin: 'http://localhost:3000', // Replace with your React app's URL
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    exposedHeaders: ['Content-Disposition'] // Important for file downloads
+}));
+
+// Initialize PayPal Environment and Client
+const environment = new paypal.core.SandboxEnvironment(
+  process.env.PAYPAL_CLIENT_ID,
+  process.env.PAYPAL_CLIENT_SECRET
+);
+const paypalClient = new paypal.core.PayPalHttpClient(environment);
+
+// Additional Middleware
 app.use(bodyParser.json());
 
 // Database Configuration
@@ -116,21 +132,30 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Data Routes
+// Update the secured parties endpoint
 app.get('/api/secured-parties', async (req, res) => {
     const { states } = req.query;
 
-    if (!states) {
-        return res.status(400).json({ error: 'States parameter is required' });
+    if (!states || states.trim() === '') {
+        return res.json([{ value: 'all', label: 'All Secured Parties' }]);
     }
 
     try {
         const connection = await getConnection();
-        const stateList = states.split(',');
+        const stateList = states.split(',').filter(state => state.trim() !== '');
+
+        if (stateList.length === 0) {
+            await connection.end();
+            return res.json([{ value: 'all', label: 'All Secured Parties' }]);
+        }
 
         let query = 'SELECT DISTINCT `Secured Party Name` FROM (';
-        const queryParts = stateList.map(state => `SELECT \`Secured Party Name\` FROM \`${state}\``);
-        query += queryParts.join(' UNION ALL ') + ') AS combined_tables ORDER BY `Secured Party Name`';
+        const queryParts = stateList.map(state => {
+            const cleanState = state.trim().toLowerCase();
+            return `SELECT \`Secured Party Name\` FROM \`${cleanState}\``;
+        });
+
+        query += queryParts.join(' UNION ALL ') + ') AS combined_tables WHERE `Secured Party Name` IS NOT NULL ORDER BY `Secured Party Name`';
 
         const [rows] = await connection.execute(query);
         await connection.end();
@@ -140,10 +165,12 @@ app.get('/api/secured-parties', async (req, res) => {
             label: row['Secured Party Name']
         }));
 
-        res.json([{ value: 'all', label: 'All Secured Parties' }, ...parties]);
+        // Always include the 'All' option at the beginning
+        return res.json([{ value: 'all', label: 'All Secured Parties' }, ...parties]);
     } catch (error) {
         console.error('Error fetching secured parties:', error);
-        res.status(500).json({ error: 'An error occurred while fetching secured parties' });
+        // Return at least the 'All' option in case of error
+        return res.status(200).json([{ value: 'all', label: 'All Secured Parties' }]);
     }
 });
 
@@ -357,6 +384,177 @@ app.post('/api/save-configuration', async (req, res) => {
     } catch (error) {
         console.error('Error saving configuration:', error);
         res.status(500).json({ error: 'An error occurred while saving the configuration' });
+    }
+});
+
+app.post('/api/verify-payment', async (req, res) => {
+  const { orderID, csvData, amount, recordCount, userId } = req.body;
+
+  try {
+    // Validate required fields
+    if (!orderID || !csvData || !amount || !userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required payment information'
+      });
+    }
+
+    // Capture the order with PayPal
+    const request = new paypal.orders.OrdersCaptureRequest(orderID);
+    request.requestBody({}); // Empty object as per PayPal SDK requirements
+
+    const captureResponse = await paypalClient.execute(request);
+    const status = captureResponse.result.status;
+
+    if (status !== 'COMPLETED') {
+      return res.status(400).json({
+        success: false,
+        message: `Payment not completed. Status: ${status}`
+      });
+    }
+
+    // Proceed to store transaction details in the database
+    const connection = await getConnection();
+
+    try {
+      // Start transaction
+      await connection.beginTransaction();
+
+      // Store transaction details
+      const [result] = await connection.execute(
+        `INSERT INTO transactions 
+        (user_id, order_id, amount, record_count, status, csv_data) 
+        VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          userId,
+          orderID,
+          amount,
+          recordCount || 0,
+          'COMPLETED',
+          csvData
+        ]
+      );
+
+      // Update user's last purchase date if needed
+      await connection.execute(
+        `UPDATE users 
+        SET last_purchase = CURRENT_TIMESTAMP 
+        WHERE id = ?`,
+        [userId]
+      );
+
+      // Commit transaction
+      await connection.commit();
+
+      // Log successful transaction
+      console.log(`Payment verified and stored: OrderID ${orderID}, UserID ${userId}`);
+
+      res.json({
+        success: true,
+        message: 'Payment verified and recorded successfully',
+        orderID: orderID,
+        transactionId: result.insertId
+      });
+
+    } catch (dbError) {
+      // Rollback transaction on error
+      await connection.rollback();
+      throw dbError;
+    } finally {
+      await connection.end();
+    }
+
+  } catch (error) {
+    console.error('Payment verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying payment: ' + error.message
+    });
+  }
+});
+
+// Add an endpoint to retrieve past transactions
+app.get('/api/transactions/:userId', async (req, res) => {
+    const { userId } = req.params;
+
+    try {
+        const connection = await getConnection();
+        
+        const [rows] = await connection.execute(
+            `SELECT 
+                id,
+                order_id,
+                amount,
+                record_count,
+                status,
+                payment_date
+            FROM transactions 
+            WHERE user_id = ? 
+            ORDER BY payment_date DESC`,
+            [userId]
+        );
+
+        await connection.end();
+
+        res.json({
+            success: true,
+            transactions: rows
+        });
+
+    } catch (error) {
+        console.error('Error fetching transactions:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching transaction history'
+        });
+    }
+});
+
+// Add an endpoint to download past purchases
+app.get('/api/download-transaction/:transactionId/:userId', async (req, res) => {
+    const { transactionId, userId } = req.params;
+
+    try {
+        const connection = await getConnection();
+        
+        // Verify user owns this transaction
+        const [rows] = await connection.execute(
+            `SELECT csv_data 
+            FROM transactions 
+            WHERE id = ? AND user_id = ?`,
+            [transactionId, userId]
+        );
+
+        await connection.end();
+
+        if (rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Transaction not found or unauthorized'
+            });
+        }
+
+        const csvData = rows[0].csv_data;
+
+        // Set proper headers for file download
+        res.set({
+            'Content-Type': 'text/csv',
+            'Content-Disposition': `attachment; filename=ucc_data_${transactionId}.csv`,
+            'Content-Length': Buffer.byteLength(csvData),
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        });
+        
+        // Send the file
+        res.send(csvData);
+
+    } catch (error) {
+        console.error('Error downloading transaction:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error downloading transaction data'
+        });
     }
 });
 
