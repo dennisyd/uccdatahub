@@ -212,23 +212,40 @@ app.post('/api/generate-csv', async (req, res) => {
         }
 
         const connection = await getConnection();
-        let allRows = [];
         let totalRecordCount = 0;
+        let fields = null;
+        const allRows = [];
 
         for (const state of states) {
-            // selectedParties is already formatted as a string
-            const securedPartiesString = selectedParties;
-
-            console.log(`Processing state: ${state}`);
-            console.log(`Secured parties: ${securedPartiesString}`);
-
             try {
+                console.log(`Processing state: ${state}`);
+                console.log('Parameters:', {
+                    state,
+                    dataType,
+                    selectedParties,
+                    uccType,
+                    role,
+                    filingDateStart,
+                    filingDateEnd
+                });
+
+                // Check if table exists
+                const [tableCheck] = await connection.execute(
+                    'SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?',
+                    [state]
+                );
+
+                if (tableCheck[0].count === 0) {
+                    console.error(`Table for state ${state} does not exist`);
+                    continue;
+                }
+
                 const [results] = await connection.execute(
                     'CALL GetUCCData(?, ?, ?, ?, ?, ?, ?)',
                     [
                         state,
                         dataType,
-                        securedPartiesString,
+                        selectedParties,
                         uccType,
                         role,
                         filingDateStart || null,
@@ -236,14 +253,14 @@ app.post('/api/generate-csv', async (req, res) => {
                     ]
                 );
 
-                // Log the structure of results for debugging
-                console.log(`Raw results structure for ${state}:`,
-                    JSON.stringify(results.map(r => Object.keys(r)), null, 2)
-                );
+                // Log the debug SQL if available
+                if (results[0] && results[0][0] && results[0][0]['Debug: Generated SQL']) {
+                    console.log('Generated SQL:', results[0][0]['Debug: Generated SQL']);
+                }
 
-                // The first result set contains the actual data
-                if (results && Array.isArray(results[0])) {
-                    const rows = results[0];
+                // The actual data will be in the next result set
+                if (results[1] && Array.isArray(results[1])) {
+                    const rows = results[1];
                     console.log(`Found ${rows.length} rows for ${state}`);
 
                     const stateRows = rows.map(row => ({
@@ -252,13 +269,17 @@ app.post('/api/generate-csv', async (req, res) => {
                         DataType: dataType,
                     }));
 
-                    allRows = allRows.concat(stateRows);
+                    allRows.push(...stateRows);
                     totalRecordCount += rows.length;
                 } else {
                     console.log(`No valid results found for ${state}`);
+                    console.log('Results structure:', JSON.stringify(results, null, 2));
                 }
             } catch (stateError) {
                 console.error(`Error processing state ${state}:`, stateError);
+                if (stateError.sqlMessage) {
+                    console.error('SQL Error:', stateError.sqlMessage);
+                }
             }
         }
 
@@ -268,21 +289,15 @@ app.post('/api/generate-csv', async (req, res) => {
             return res.status(404).json({ error: 'No data found for the given criteria' });
         }
 
-        console.log(`Total records found: ${totalRecordCount}`);
-
-        // Get the fields from the first row
-        const fields = Object.keys(allRows[0]);
-
-        // Convert the results to CSV
-        const json2csvParser = new Parser({ fields });
+        const json2csvParser = new Parser({ fields: Object.keys(allRows[0]) });
         const csvData = json2csvParser.parse(allRows);
 
-        // Send the CSV data and the record count
         res.json({
             csv: csvData,
             recordCount: totalRecordCount,
             message: 'CSV generated successfully'
         });
+
     } catch (error) {
         console.error('Error generating CSV:', error);
         res.status(500).json({
