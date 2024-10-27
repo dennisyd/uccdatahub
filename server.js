@@ -24,8 +24,8 @@ app.use(cors({
 }));
 
 // Increase payload size limits
-app.use(bodyParser.json({limit: '50mb'}));
-app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
 // PayPal Configuration
 let paypalClient;
@@ -33,16 +33,16 @@ try {
     // Initialize PayPal with error handling
     const clientId = process.env.REACT_APP_PAYPAL_CLIENT_ID;
     const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-    
+
     if (!clientId || !clientSecret) {
         throw new Error('PayPal credentials are not configured properly');
     }
 
     console.log('Initializing PayPal with client ID:', clientId.substring(0, 8) + '...');
-    
+
     const environment = new paypal.core.SandboxEnvironment(clientId, clientSecret);
     paypalClient = new paypal.core.PayPalHttpClient(environment);
-    
+
     console.log('PayPal client initialized successfully');
 } catch (error) {
     console.error('PayPal initialization error:', error);
@@ -668,14 +668,35 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
 // Helper Functions
 async function createTable(connection, tableName, columns) {
+    // First create table with all columns as VARCHAR
     const columnDefinitions = columns.map(col => `\`${col.content}\` VARCHAR(255)`).join(', ');
-    const query = `
+    const createQuery = `
         CREATE TABLE IF NOT EXISTS \`${tableName}\` (
             id INT AUTO_INCREMENT PRIMARY KEY, 
             ${columnDefinitions}
         )
     `;
-    await connection.execute(query);
+    await connection.execute(createQuery);
+
+    // Then check and modify the Filing Date column if it exists
+    const checkQuery = `
+        SELECT COLUMN_TYPE 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = ? 
+        AND COLUMN_NAME = 'Filing Date' 
+        AND TABLE_SCHEMA = DATABASE()
+    `;
+    const [columns_result] = await connection.execute(checkQuery, [tableName]);
+
+    if (columns_result.length > 0 && columns_result[0].COLUMN_TYPE !== 'date') {
+        // Modify the column type to DATE
+        const alterQuery = `
+            ALTER TABLE \`${tableName}\`
+            MODIFY COLUMN \`Filing Date\` DATE
+        `;
+        await connection.execute(alterQuery);
+        console.log(`Modified Filing Date column in ${tableName} to DATE type`);
+    }
 }
 
 async function processCSV(filePath, connection, table1Name, table2Name, commonColumns, table1Columns, table2Columns) {
@@ -706,7 +727,19 @@ async function processCSV(filePath, connection, table1Name, table2Name, commonCo
 
 async function insertRow(connection, tableName, columns, row) {
     const columnNames = columns.map(col => col.content);
-    const values = columnNames.map(col => row[col] || null);
+    const values = columnNames.map(col => {
+        const value = row[col];
+        // Special handling for Filing Date column
+        if (col === 'Filing Date' && value) {
+            // Convert date from MM/DD/YYYY to YYYY-MM-DD format
+            const parts = value.split('/');
+            if (parts.length === 3) {
+                return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+            }
+        }
+        return value || null;
+    });
+
     const placeholders = columnNames.map(() => '?').join(', ');
     const query = `
         INSERT INTO \`${tableName}\` 
