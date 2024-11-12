@@ -31,17 +31,13 @@ function HubForms({
   };
 
   const handleStateChange = (selectedOptions) => {
-    if (!selectedOptions || selectedOptions.length === 0) {
+    if (!selectedOptions) {
       setSelectedStates([]);
       setSelectedParties([]);
       return;
     }
 
-    if (selectedOptions.some((option) => option.value === 'all')) {
-      setSelectedStates([states[0]]);
-    } else {
-      setSelectedStates(selectedOptions);
-    }
+    setSelectedStates([selectedOptions]);
     setSelectedParties([]);
   };
 
@@ -87,9 +83,8 @@ function HubForms({
           <MapPin className="section-icon" /> Select States
         </h3>
         <Select
-          isMulti
           options={states}
-          value={selectedStates}
+          value={selectedStates[0]}
           onChange={handleStateChange}
           className="react-select-container"
           classNamePrefix="react-select"

@@ -7,6 +7,9 @@ import About from './components/About';
 import SignIn from './components/SignIn';
 import Hub from './components/Hub';
 import AdminPage from './components/AdminPage';
+import { useUser } from './contexts/UserContext';
+
+console.log(process.env.REACT_APP_ADMIN_EMAIL);
 
 // PayPal configuration options
 const paypalOptions = {
@@ -17,52 +20,15 @@ const paypalOptions = {
 };
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(true);
-
-  // Check authentication status on mount and when localStorage changes
-  useEffect(() => {
-    const checkAuth = () => {
-      const userId = localStorage.getItem('userId');
-      setIsAuthenticated(!!userId);
-      setIsLoading(false);
-    };
-
-    // Initial check
-    checkAuth();
-
-    // Listen for localStorage changes
-    window.addEventListener('storage', checkAuth);
-
-    return () => {
-      window.removeEventListener('storage', checkAuth);
-    };
-  }, []);
-
-  const handleSignOut = () => {
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('loginTime');
-    setIsAuthenticated(false);
-  };
+  const { logout, user, isAdmin } = useUser();
 
   const ProtectedRoute = ({ children }) => {
-    if (isLoading) {
-      return <div>Loading...</div>;
-    }
-    
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
+    if (!user.userId) {
       return <Navigate to="/signin" replace />;
     }
     
     return children;
   };
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
 
   return (
     <PayPalScriptProvider options={paypalOptions}>
@@ -84,7 +50,7 @@ function App() {
                         About
                       </Link>
                     </li>
-                    {!isAuthenticated ? (
+                    {!user.isAuthenticated ? (
                       <li>
                         <Link to="/signin" className="text-gray-700 hover:text-gray-900">
                           Sign In
@@ -99,7 +65,7 @@ function App() {
                         </li>
                         <li>
                           <button
-                            onClick={handleSignOut}
+                            onClick={logout}
                             className="text-gray-700 hover:text-gray-900"
                           >
                             Sign Out
@@ -107,11 +73,11 @@ function App() {
                         </li>
                       </>
                     )}
-                    <li>
+                    {isAdmin ? <li>
                       <Link to="/admin" className="text-gray-700 hover:text-gray-900">
                         Admin
                       </Link>
-                    </li>
+                    </li> : null}
                   </ul>
                 </nav>
               </div>

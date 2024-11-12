@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useUser } from '../contexts/UserContext';
 
 function SignIn() {
+  const { user, login } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -10,7 +12,7 @@ function SignIn() {
 
   // Check if user is already logged in
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
+    const userId = user?.userId;
     if (userId) {
       navigate('/hub');
     }
@@ -38,10 +40,7 @@ function SignIn() {
       const data = await response.json();
       
       // Store user data in localStorage
-      localStorage.setItem('userId', data.userId);
-      localStorage.setItem('userEmail', email);
-      localStorage.setItem('userName', `${data.firstName} ${data.lastName}`);
-      localStorage.setItem('loginTime', new Date().toISOString());
+      login(data.userId, email, `${data.firstName} ${data.lastName}`);
 
       // Redirect to hub page
       navigate('/hub');

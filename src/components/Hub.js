@@ -6,9 +6,12 @@ import HubActions from './HubActions';
 import ProfileSection from './ProfileSection';
 import { states, roles, uccTypes } from '../constants/formOptions';
 import './Hub.css';
+import { useUser } from '../contexts/UserContext';
 
 function Hub() {
   const navigate = useNavigate();
+  const { user } = useUser();
+
   const [userId, setUserId] = useState('');
   const [dataType, setDataType] = useState('basic');
   const [selectedStates, setSelectedStates] = useState([]);
@@ -26,7 +29,7 @@ function Hub() {
   const [csvData, setCsvData] = useState(null);
 
   useEffect(() => {
-    const storedUserId = localStorage.getItem('userId');
+    const storedUserId = user.userId;
     if (!storedUserId) {
       navigate('/login');
     } else {

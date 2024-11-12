@@ -4,6 +4,7 @@ import Button from './ui/Button';
 import PayPalButton from './PayPalButton';
 import DiscountCode from './DiscountCode';
 import { states } from '../constants/formOptions';
+import { useUser } from '../contexts/UserContext';
 
 function HubActions({
     selectedStates,
@@ -34,6 +35,8 @@ function HubActions({
     setFilingDateEnd,
     securedParties
 }) {
+    const { user } = useUser();
+
     const handleGenerateCSV = async () => {
         try {
             if (!selectedStates.length) {
@@ -113,7 +116,7 @@ function HubActions({
             setIsPaying(true);
             console.log('Starting payment processing with data:', data);
 
-            const userId = localStorage.getItem('userId');
+            const userId = user.userId;
             console.log('Retrieved userId:', userId);
 
             if (!userId) {

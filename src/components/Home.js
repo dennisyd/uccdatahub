@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useUser } from '../contexts/UserContext';
 
 function Home() {
   const navigate = useNavigate();
+  const { user } = useUser();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -183,9 +185,9 @@ function Home() {
         <p className="terms-notice">
           By registering, you agree to our Terms & Conditions and Privacy Policy.
         </p>
-        <div className="login-link">
+        {!user?.isAuthenticated ? <div className="login-link">
           Already have an account? <button onClick={() => navigate('/login')} className="link-button">Log in</button>
-        </div>
+        </div>: null}
       </section>
 
       <style jsx>{`

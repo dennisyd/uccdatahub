@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { useNavigate } from 'react-router-dom';
 import Select from 'react-select';
 import { Upload, Save, Download } from 'lucide-react';
+import { useUser } from '../contexts/UserContext';
 import './AdminPage.css';
 
 const states = [
@@ -66,7 +68,13 @@ function AdminPage() {
   const [table2Columns, setTable2Columns] = useState([]);
   const [confirmationCode, setConfirmationCode] = useState('');
   const [showConfirmationInput, setShowConfirmationInput] = useState(false);
+  const navigate = useNavigate();
+  const { isAdmin } = useUser();
 
+  if (!isAdmin) { 
+    navigate("/");
+  }
+  
   const handleStateChange = (selectedOption) => {
     setSelectedState(selectedOption);
   };
